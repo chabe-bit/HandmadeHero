@@ -7,27 +7,35 @@
 #define local_persist static
 #define global_variable static
 
+struct win32_offscreen_buffer
+{
+	BITMAPINFO BitmapInfo;
+	void* BitmapMemory; // Memory that we receive from windows to draw into our renderer
+	int Width;
+	int Height;
+	int Pitch;
+	int BytesPerPixel;
+};
+
+
 // Contain a variable to exit on its own
 global_variable bool Running; // Global for now
-global_variable BITMAPINFO BitmapInfo;
-global_variable void* BitmapMemory; // Memory that we receive from windows to draw into our renderer
-global_variable int BitmapWidth;
-global_variable int BitmapHeight;
-global_variable int BytesPerPixel = 4;
+global_variable win32_offscreen_buffer GlobalBackBuffer;
+
 
 internal void
-RenderSomething(int xOffset, int yOffset)
+RenderSomething(win32_offscreen_buffer Buffer, int xOffset, int yOffset)
 {
-	int Width = BitmapWidth;
-	int Height = BitmapHeight;
+	int Width = Buffer.Width;
+	int Height = Buffer.Height;
+
 	// Change the void* BitmapMemory into something it does understand, treated as bytes to memory
-	int Pitch = Width * BytesPerPixel; // The overall size of the pitch is the width, but subset sizes are the pixel : | | | | | | | | |
-	uint8_t* Row = (uint8_t*)BitmapMemory;
-	for (int Y = 0; Y < BitmapHeight; ++Y)
+	uint8_t* Row = (uint8_t*)Buffer.BitmapMemory;
+	for (int Y = 0; Y < Buffer.Height; ++Y)
 	{
 		// Point each row in the bitmap as a pointer
-		uint8_t* Pixel = (uint8_t*)BitmapMemory;
-		for (int X = 0; X < BitmapWidth; ++X)
+		uint8_t* Pixel = (uint8_t*)Buffer.BitmapMemory;
+		for (int X = 0; X < Buffer.Width; ++X)
 		{
 			// Write into the Pixel by derefencing
 			/*
@@ -52,63 +60,68 @@ RenderSomething(int xOffset, int yOffset)
 			++Pixel;
 
 		}
-		Row += Pitch;
+		Row += Buffer.Pitch;
 	}
 }
 
 // DIBSection, device independent bitmap, talk about the things you wrtie into its buffer to display using GDI
 internal void
-x64ResizeDBISection(int Width, int Height)
+Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 {
 	// TODO(Ben): Bulletproof this
 	// Maybe don't free first, free after, then free first
 
-	if (BitmapMemory)
+	if (Buffer->BitmapMemory)
 	{
 		// We don't have to pass in the size of memory that we allocated into this function because it
 		// remembers the amount we allocated, so we can pass a 0.
-		VirtualFree(BitmapMemory, 0, MEM_RELEASE);
+		VirtualFree(Buffer->BitmapMemory, 0, MEM_RELEASE);
 
 		// MEM_DECOMMIT : 
 		// Decommit and leaves the pages we've freed reserved because we might want to use them again.
 	}
 
-	BitmapWidth = Width;
-	BitmapHeight = Height;
+	Buffer->Width = Width;
+	Buffer->Height = Height;
+	Buffer->BytesPerPixel = 4;
 
-	BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-	BitmapInfo.bmiHeader.biWidth = BitmapWidth;
-	BitmapInfo.bmiHeader.biHeight = -BitmapHeight;
-	BitmapInfo.bmiHeader.biPlanes = 1;
-	BitmapInfo.bmiHeader.biBitCount = 32;
-	BitmapInfo.bmiHeader.biCompression = BI_RGB;
+	Buffer->BitmapInfo.bmiHeader.biSize = sizeof(Buffer->BitmapInfo.bmiHeader);
+	Buffer->BitmapInfo.bmiHeader.biWidth = Buffer->Width;
+	Buffer->BitmapInfo.bmiHeader.biHeight = -Buffer->Height;
+	Buffer->BitmapInfo.bmiHeader.biPlanes = 1;
+	Buffer->BitmapInfo.bmiHeader.biBitCount = 32;
+	Buffer->BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
 	// How much memory do we want?
 	// We requested for 32 bits, 8 bits R, 8 bits G, 8 bits B and 8 bits for Pad (unused and purpose is for alignment)
-	int BitmapMemorySize = (BitmapWidth * BitmapHeight) * BytesPerPixel;
+	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * Buffer->BytesPerPixel;
 
 	// Allocation
-	BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+	Buffer->BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
-	RenderSomething(0, 0);
+	Buffer->Pitch = Width * Buffer->BytesPerPixel; // The overall size of the pitch is the width, but subset sizes are the pixel : | | | | | | | | |
+
+	
 }
-
+ 
 internal void
-x64UpdateWindow(HDC DeviceContext, RECT *ClientRect, int X, int Y, int Width, int Height)
-{
-	int WindowWidth = ClientRect->right - ClientRect->left;
-	int WindowHeight = ClientRect->bottom - ClientRect->top ;
+Win32DisplayBufferToWindow(HDC DeviceContext, RECT ClientRect, 
+							win32_offscreen_buffer Buffer,
+							int X, int Y, int Width, int Height)
+{ 
+	int WindowWidth = ClientRect.right - ClientRect.left;
+	int WindowHeight = ClientRect.bottom - ClientRect.top ;
 	StretchDIBits(DeviceContext, 
-		0, 0, BitmapWidth, BitmapHeight,
+		0, 0, Buffer.Width, Buffer.Height,
 		0, 0, WindowWidth, WindowHeight,
-		BitmapMemory,
-		&BitmapInfo,
+		Buffer.BitmapMemory,
+		&Buffer.BitmapInfo,
 		DIB_RGB_COLORS,
 		SRCCOPY);
 }
 
 LRESULT CALLBACK
-x64MainWindowCallback(HWND Window,
+Win32MainWindowCallback(HWND Window,
 					UINT Message,
 					WPARAM wParam,
 					LPARAM lParam)
@@ -127,8 +140,7 @@ x64MainWindowCallback(HWND Window,
 			// Find the W and H for the buffer in our window 
 			int Width = ClientRect.right - ClientRect.left;
 			int Height = ClientRect.bottom - ClientRect.top;
-			x64ResizeDBISection(Width, Height);
-			OutputDebugStringA("WN_SIZE\n");
+			Win32ResizeDIBSection(&GlobalBackBuffer, Width, Height);
 			break;
 		}
 		case WM_DESTROY: // Window deletes window
@@ -161,7 +173,7 @@ x64MainWindowCallback(HWND Window,
 			RECT ClientRect;
 			GetClientRect(Window, &ClientRect);
 
-			x64UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
+			Win32DisplayBufferToWindow(DeviceContext, ClientRect, GlobalBackBuffer, X, Y, Width, Height);
 
 			EndPaint(Window, &Paint);
 			break;
@@ -184,8 +196,8 @@ WinMain(HINSTANCE Instance,
 {
 	WNDCLASSA WindowClass = {};
 
-	WindowClass.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW; // Set of binary flags
-	WindowClass.lpfnWndProc = x64MainWindowCallback; // Pointer to a function 
+	WindowClass.style = CS_HREDRAW | CS_VREDRAW; // Set of binary flags
+	WindowClass.lpfnWndProc = Win32MainWindowCallback; // Pointer to a function 
 	WindowClass.hInstance = Instance;   // Determines what setting we set our window to
 	// WindowClass     hIcon;       
 	WindowClass.lpszClassName = "HandmadeHeroWindowClass"; // Name for our window 
@@ -217,18 +229,18 @@ WinMain(HINSTANCE Instance,
 			while (Running)
 			{
 				MSG Message;
-
 				while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
 				{
-					BOOL MessageResult = (GetMessage(&Message, 0, 0, 0));
-					if (MessageResult > 0) // If it doesn't exit 
+					if (Message.message == WM_QUIT)
 					{
-						// TranslateMessage(&Message); // Processes messages that comes in
-						DispatchMessage(&Message);
+						Running = false;
 					}
-
+					
+					TranslateMessage(&Message); // Processes messages that comes in
+					DispatchMessage(&Message);
+				
 				}
-				RenderSomething(xOffset, yOffset);
+				RenderSomething(GlobalBackBuffer, xOffset, yOffset);
 				HDC DeviceContext = GetDC(Window);
 
 				RECT ClientRect;
@@ -236,7 +248,7 @@ WinMain(HINSTANCE Instance,
 
 				int WindowWidth = ClientRect.right - ClientRect.left;
 				int WindowHeight = ClientRect.bottom - ClientRect.top;
-				x64UpdateWindow(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+				Win32DisplayBufferToWindow(DeviceContext, ClientRect, GlobalBackBuffer, 0, 0, WindowWidth, WindowHeight);
 				ReleaseDC(Window, DeviceContext);
 
 				xOffset++;
