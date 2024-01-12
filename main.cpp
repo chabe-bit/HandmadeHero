@@ -1,4 +1,7 @@
 #include <Windows.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define internal static
 #define local_persist static
@@ -8,8 +11,51 @@
 global_variable bool Running; // Global for now
 global_variable BITMAPINFO BitmapInfo;
 global_variable void* BitmapMemory; // Memory that we receive from windows to draw into our renderer
-global_variable HBITMAP BitmapHandle;
-global_variable HDC BitmapDeviceContext;
+global_variable int BitmapWidth;
+global_variable int BitmapHeight;
+global_variable int BytesPerPixel = 4;
+
+internal void
+RenderSomething(int xOffset, int yOffset)
+{
+	int Width = BitmapWidth;
+	int Height = BitmapHeight;
+	// Change the void* BitmapMemory into something it does understand, treated as bytes to memory
+	int Pitch = Width * BytesPerPixel; // The overall size of the pitch is the width, but subset sizes are the pixel : | | | | | | | | |
+	uint8_t* Row = (uint8_t*)BitmapMemory;
+	for (int Y = 0; Y < BitmapHeight; ++Y)
+	{
+		// Point each row in the bitmap as a pointer
+		uint8_t* Pixel = (uint8_t*)BitmapMemory;
+		for (int X = 0; X < BitmapWidth; ++X)
+		{
+			// Write into the Pixel by derefencing
+			/*
+				Because of the window architecture using little endian and using data coming out of 32 bits,
+				RR GG BB xx being their original, would return as  xx BB GG RR, reversed! They didn't like that,
+				so defined the memory read as backwards.
+
+				Pixel in memory: 00 00 00 00
+
+			*/
+
+			*Pixel = (uint8_t)(X + xOffset);
+			++Pixel;
+
+			*Pixel = (uint8_t)(Y + yOffset);
+			++Pixel;
+
+			*Pixel = 0;
+			++Pixel;
+
+			*Pixel = 0;
+			++Pixel;
+
+		}
+		Row += Pitch;
+	}
+}
+
 // DIBSection, device independent bitmap, talk about the things you wrtie into its buffer to display using GDI
 internal void
 x64ResizeDBISection(int Width, int Height)
@@ -17,46 +63,48 @@ x64ResizeDBISection(int Width, int Height)
 	// TODO(Ben): Bulletproof this
 	// Maybe don't free first, free after, then free first
 
-	// Check to see if we have a bitmaphandle, if we don't then we go ahead and create one
-	if (BitmapHandle)
+	if (BitmapMemory)
 	{
-		DeleteObject(BitmapHandle);
+		// We don't have to pass in the size of memory that we allocated into this function because it
+		// remembers the amount we allocated, so we can pass a 0.
+		VirtualFree(BitmapMemory, 0, MEM_RELEASE);
+
+		// MEM_DECOMMIT : 
+		// Decommit and leaves the pages we've freed reserved because we might want to use them again.
 	}
 
-	if (!BitmapDeviceContext)
-	{
-		BitmapDeviceContext = CreateCompatibleDC(0);
-	}
+	BitmapWidth = Width;
+	BitmapHeight = Height;
 
 	BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-	BitmapInfo.bmiHeader.biWidth = Width;
-	BitmapInfo.bmiHeader.biHeight = Height;
+	BitmapInfo.bmiHeader.biWidth = BitmapWidth;
+	BitmapInfo.bmiHeader.biHeight = -BitmapHeight;
 	BitmapInfo.bmiHeader.biPlanes = 1;
 	BitmapInfo.bmiHeader.biBitCount = 32;
 	BitmapInfo.bmiHeader.biCompression = BI_RGB;
-	BitmapInfo.bmiHeader.biSizeImage = BI_RGB;
 
-	BitmapHandle = CreateDIBSection(
-		 BitmapDeviceContext,
-		 &BitmapInfo,
-		 DIB_RGB_COLORS,
-		 &BitmapMemory,
-		 0,
-		 0);
+	// How much memory do we want?
+	// We requested for 32 bits, 8 bits R, 8 bits G, 8 bits B and 8 bits for Pad (unused and purpose is for alignment)
+	int BitmapMemorySize = (BitmapWidth * BitmapHeight) * BytesPerPixel;
+
+	// Allocation
+	BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+
+	RenderSomething(0, 0);
 }
 
 internal void
-x64UpdateWindow(HDC DeviceContext, int X, int Y, int Width, int Height)
+x64UpdateWindow(HDC DeviceContext, RECT *ClientRect, int X, int Y, int Width, int Height)
 {
-	// Copy one rect to another
+	int WindowWidth = ClientRect->right - ClientRect->left;
+	int WindowHeight = ClientRect->bottom - ClientRect->top ;
 	StretchDIBits(DeviceContext, 
-		X, Y, Width, Height,
-		X, Y, Width, Height,
+		0, 0, BitmapWidth, BitmapHeight,
+		0, 0, WindowWidth, WindowHeight,
 		BitmapMemory,
 		&BitmapInfo,
 		DIB_RGB_COLORS,
-		SRCCOPY
-	);
+		SRCCOPY);
 }
 
 LRESULT CALLBACK
@@ -77,8 +125,8 @@ x64MainWindowCallback(HWND Window,
 			GetClientRect(Window, &ClientRect);
 
 			// Find the W and H for the buffer in our window 
-			int Width = ClientRect.bottom - ClientRect.top;
-			int Height = ClientRect.right - ClientRect.left;
+			int Width = ClientRect.right - ClientRect.left;
+			int Height = ClientRect.bottom - ClientRect.top;
 			x64ResizeDBISection(Width, Height);
 			OutputDebugStringA("WN_SIZE\n");
 			break;
@@ -105,15 +153,15 @@ x64MainWindowCallback(HWND Window,
 			// Prepares the window for painting
 			PAINTSTRUCT Paint;
 			HDC DeviceContext = BeginPaint(Window, &Paint);
-			
-			
-
-			// Find the Width & Height
 			int X = Paint.rcPaint.left;
 			int Y = Paint.rcPaint.top;
-			int Width = Paint.rcPaint.bottom - Paint.rcPaint.top;
-			int Height = Paint.rcPaint.right - Paint.rcPaint.left;
-			x64UpdateWindow(DeviceContext, X, Y, Width, Height);
+			int Width = Paint.rcPaint.right - Paint.rcPaint.left;
+			int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
+
+			RECT ClientRect;
+			GetClientRect(Window, &ClientRect);
+
+			x64UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
 
 			EndPaint(Window, &Paint);
 			break;
@@ -145,7 +193,7 @@ WinMain(HINSTANCE Instance,
 	// Registering the window class
 	if (RegisterClassA(&WindowClass))
 	{
-		HWND WindowHandle = CreateWindowExA(
+		HWND Window = CreateWindowExA(
 						0,
 						WindowClass.lpszClassName,
 						"Handmade Hero",
@@ -158,25 +206,40 @@ WinMain(HINSTANCE Instance,
 						0,
 						Instance,
 						0);
-		if (WindowHandle)
+		if (Window)
 		{
 			// Start a message loop
 			// A queue of message are created for you by the window
 			// Use GetMessage() to dispatch incoming messages
+			int xOffset = 0;
+			int yOffset = 0;
 			Running = true;
-			MSG Message;
 			while (Running)
 			{
-				BOOL MessageResult = (GetMessage(&Message, 0, 0, 0));
-				if (MessageResult > 0) // If it doesn't exit 
+				MSG Message;
+
+				while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
 				{
-					// TranslateMessage(&Message); // Processes messages that comes in
-					DispatchMessage(&Message);
+					BOOL MessageResult = (GetMessage(&Message, 0, 0, 0));
+					if (MessageResult > 0) // If it doesn't exit 
+					{
+						// TranslateMessage(&Message); // Processes messages that comes in
+						DispatchMessage(&Message);
+					}
+
 				}
-				else
-				{
-					break;
-				}
+				RenderSomething(xOffset, yOffset);
+				HDC DeviceContext = GetDC(Window);
+
+				RECT ClientRect;
+				GetClientRect(Window, &ClientRect);
+
+				int WindowWidth = ClientRect.right - ClientRect.left;
+				int WindowHeight = ClientRect.bottom - ClientRect.top;
+				x64UpdateWindow(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+				ReleaseDC(Window, DeviceContext);
+
+				xOffset++;
 			}
 		}
 		else
