@@ -178,8 +178,8 @@ Win32DisplayBufferToWindow(HDC DeviceContext, int WindowWidth, int WindowHeight,
 internal LRESULT CALLBACK
 Win32MainWindowCallback(HWND Window,
 					UINT Message,
-					WPARAM wParam,
-					LPARAM lParam)
+					WPARAM WParam,
+					LPARAM LParam)
 {
 	LRESULT Result = 0;
 
@@ -208,6 +208,82 @@ Win32MainWindowCallback(HWND Window,
 			OutputDebugStringA("WM_ACTIVATEAPP\n");
 			break;
 		}
+		case WM_SYSKEYUP:
+		{
+			break;
+		}
+		case WM_SYSKEYDOWN:
+		{
+			break;
+
+		}
+		case WM_KEYUP:
+		{
+			break;
+
+		}
+		case WM_KEYDOWN:
+		{
+			uint32_t VKCode = WParam;
+			// Check to see if a key WAS down
+			bool WasDown = ((LParam & (1 << 30)) != 0); // Shift 30 bits up (or left)
+			bool IsDown = ((LParam & (1 << 31)) == 0); // We want it down!
+
+			if (VKCode == 'W')
+			{
+ 
+			}
+			else if (VKCode == 'A')
+			{
+
+			}
+			else if (VKCode == 'S')
+			{
+
+			}
+			else if (VKCode == 'D')
+			{
+
+			}
+			else if (VKCode == 'Q')
+			{
+
+			}
+			else if (VKCode == 'E')
+			{
+
+			}
+			else if (VKCode == VK_UP)
+			{
+
+			}
+			else if (VKCode == VK_LEFT)
+			{
+
+			}
+			else if (VKCode == VK_RIGHT)
+			{
+
+			}
+			else if (VKCode == VK_DOWN)
+			{
+
+			}
+			else if (VKCode == VK_ESCAPE)
+			{
+
+
+			}
+			else if (VKCode == VK_SPACE)
+			{
+
+			}
+
+
+			break;
+
+		}
+
 		case WM_PAINT: // User clicks app to be used
 		{
 			// Prepares the window for painting
@@ -227,7 +303,7 @@ Win32MainWindowCallback(HWND Window,
 		}
 		default: // User closes the window
 		{
-			Result = DefWindowProcA(Window, Message, wParam, lParam); // Catch all messages we missed
+			Result = DefWindowProcA(Window, Message, WParam, LParam); // Catch all messages we missed
 			break;
 		}
 	}
