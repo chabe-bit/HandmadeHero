@@ -34,7 +34,7 @@ RenderSomething(win32_offscreen_buffer Buffer, int xOffset, int yOffset)
 	for (int Y = 0; Y < Buffer.Height; ++Y)
 	{
 		// Point each row in the bitmap as a pointer
-		uint8_t* Pixel = (uint8_t*)Buffer.BitmapMemory;
+		uint8_t* Pixel = (uint8_t*)Row;
 		for (int X = 0; X < Buffer.Width; ++X)
 		{
 			// Write into the Pixel by derefencing
@@ -95,8 +95,6 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 	// How much memory do we want?
 	// We requested for 32 bits, 8 bits R, 8 bits G, 8 bits B and 8 bits for Pad (unused and purpose is for alignment)
 	int BitmapMemorySize = (Buffer->Width * Buffer->Height) * Buffer->BytesPerPixel;
-
-	// Allocation
 	Buffer->BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 
 	Buffer->Pitch = Width * Buffer->BytesPerPixel; // The overall size of the pitch is the width, but subset sizes are the pixel : | | | | | | | | |
