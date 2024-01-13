@@ -1,7 +1,7 @@
 #include <Windows.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <Xinput.h>
+
 
 #define internal static
 #define local_persist static
@@ -17,6 +17,64 @@ struct win32_offscreen_buffer
 	int BytesPerPixel;
 };
 
+struct win32_window_dimension
+{
+	int Width;
+	int Height;
+
+};
+
+// --- XInputGetState ----------------------------------------------
+#define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+typedef X_INPUT_GET_STATE(_x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+	return 0;
+}
+
+// --- XInputSetState ----------------------------------------------
+#define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
+typedef X_INPUT_SET_STATE(_x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub)
+{
+	return 0;
+}
+
+global_variable _x_input_get_state* XInputGetState_ = XInputGetStateStub;
+global_variable _x_input_set_state* XInputSetState_ = XInputSetStateStub;
+
+#define XInputGetState XInputGetState_;
+#define XInputSetState XInputSetState_;
+
+internal void
+Win32LoadXInput(void)
+{
+	HMODULE XInputLibrary = LoadLibraryA("xinput1_3.dll");
+	if (XInputLibrary)
+	{
+		XInputGetState_ = (_x_input_get_state*)GetProcAddress(XInputLibrary, "XInputGetState");
+		XInputSetState_ = (_x_input_set_state*)GetProcAddress(XInputLibrary, "XInputSetState");
+
+	}
+}
+
+
+
+
+
+internal win32_window_dimension
+Win32GetWindowDimension(HWND Window)
+{
+	win32_window_dimension Result;
+
+	RECT ClientRect;
+	GetClientRect(Window, &ClientRect);
+
+	Result.Width = ClientRect.right - ClientRect.left;
+	Result.Height = ClientRect.bottom - ClientRect.top;
+
+	return Result;
+}
 
 // Contain a variable to exit on its own
 global_variable bool Running; // Global for now
@@ -103,22 +161,21 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 }
  
 internal void
-Win32DisplayBufferToWindow(HDC DeviceContext, RECT ClientRect, 
+Win32DisplayBufferToWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, 
 							win32_offscreen_buffer Buffer,
 							int X, int Y, int Width, int Height)
 { 
-	int WindowWidth = ClientRect.right - ClientRect.left;
-	int WindowHeight = ClientRect.bottom - ClientRect.top ;
+	// (TODO): Correct the aspect ratio when we do this split
 	StretchDIBits(DeviceContext, 
-		0, 0, Buffer.Width, Buffer.Height,
 		0, 0, WindowWidth, WindowHeight,
+		0, 0, Buffer.Width, Buffer.Height,
 		Buffer.BitmapMemory,
 		&Buffer.BitmapInfo,
 		DIB_RGB_COLORS,
 		SRCCOPY);
 }
 
-LRESULT CALLBACK
+internal LRESULT CALLBACK
 Win32MainWindowCallback(HWND Window,
 					UINT Message,
 					WPARAM wParam,
@@ -131,14 +188,7 @@ Win32MainWindowCallback(HWND Window,
 	{
 		case WM_SIZE:	 // User change window size
 		{
-			// Every time we resize our window, this function is called to correct our display to fit the window
-			RECT ClientRect;
-			GetClientRect(Window, &ClientRect);
 
-			// Find the W and H for the buffer in our window 
-			int Width = ClientRect.right - ClientRect.left;
-			int Height = ClientRect.bottom - ClientRect.top;
-			Win32ResizeDIBSection(&GlobalBackBuffer, Width, Height);
 			break;
 		}
 		case WM_DESTROY: // Window deletes window
@@ -168,10 +218,9 @@ Win32MainWindowCallback(HWND Window,
 			int Width = Paint.rcPaint.right - Paint.rcPaint.left;
 			int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
 
-			RECT ClientRect;
-			GetClientRect(Window, &ClientRect);
+			win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 
-			Win32DisplayBufferToWindow(DeviceContext, ClientRect, GlobalBackBuffer, X, Y, Width, Height);
+			Win32DisplayBufferToWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, X, Y, Width, Height);
 
 			EndPaint(Window, &Paint);
 			break;
@@ -192,7 +241,12 @@ WinMain(HINSTANCE Instance,
 		LPSTR     CmdLine,
 		int       ShowCmd)
 {
+	Win32LoadXInput();
+
 	WNDCLASSA WindowClass = {};
+
+	// Every time we resize our window, this function is called to correct our display to fit the window
+	Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
 
 	WindowClass.style = CS_HREDRAW | CS_VREDRAW; // Set of binary flags
 	WindowClass.lpfnWndProc = Win32MainWindowCallback; // Pointer to a function 
@@ -238,15 +292,54 @@ WinMain(HINSTANCE Instance,
 					DispatchMessage(&Message);
 				
 				}
+
+				// This is where we taking user input
+				for (DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ++ControllerIndex)
+				{
+					XINPUT_STATE ControllerState;
+					// xInputGetState_ points to a stub function 
+					if (XInputGetState_(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+					{
+						// This means the controller is plugged in.
+						XINPUT_GAMEPAD* Pad = &ControllerState.Gamepad;
+						
+						bool Up = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_UP;
+						bool Down = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_DOWN;
+						bool Left = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_LEFT;
+						bool Right = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_RIGHT;
+						bool Start = (Pad->wButtons) & XINPUT_GAMEPAD_START;
+						bool Back = (Pad->wButtons) & XINPUT_GAMEPAD_BACK;
+						bool LeftShoulder = (Pad->wButtons) & XINPUT_GAMEPAD_LEFT_SHOULDER;
+						bool RightShoulder = (Pad->wButtons) & XINPUT_GAMEPAD_RIGHT_SHOULDER;
+						bool A_Button = (Pad->wButtons) & XINPUT_GAMEPAD_A;
+						bool B_Button = (Pad->wButtons) & XINPUT_GAMEPAD_B;
+						bool X_Button = (Pad->wButtons) & XINPUT_GAMEPAD_X;
+						bool Y_Button = (Pad->wButtons) & XINPUT_GAMEPAD_Y;
+
+						int16_t StickX = Pad->sThumbLX;
+						int16_t StickY = Pad->sThumbLY;
+
+						if (A_Button)
+						{
+							yOffset += 2;
+						}
+
+					}
+					else
+					{
+						// This meansa the controller is not plugged in.
+
+					}
+
+				}
+
+
+
 				RenderSomething(GlobalBackBuffer, xOffset, yOffset);
 				HDC DeviceContext = GetDC(Window);
 
-				RECT ClientRect;
-				GetClientRect(Window, &ClientRect);
-
-				int WindowWidth = ClientRect.right - ClientRect.left;
-				int WindowHeight = ClientRect.bottom - ClientRect.top;
-				Win32DisplayBufferToWindow(DeviceContext, ClientRect, GlobalBackBuffer, 0, 0, WindowWidth, WindowHeight);
+				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
+				Win32DisplayBufferToWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, 0, 0, Dimension.Width, Dimension.Height);
 				ReleaseDC(Window, DeviceContext);
 
 				xOffset++;
