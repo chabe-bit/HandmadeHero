@@ -1,7 +1,7 @@
 #include <Windows.h>
 #include <stdint.h>
 #include <Xinput.h>
-
+#include <dsound.h>
 
 #define internal static
 #define local_persist static
@@ -29,7 +29,7 @@ struct win32_window_dimension
 typedef X_INPUT_GET_STATE(_x_input_get_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
 
 // --- XInputSetState ----------------------------------------------
@@ -37,7 +37,7 @@ X_INPUT_GET_STATE(XInputGetStateStub)
 typedef X_INPUT_SET_STATE(_x_input_set_state);
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
 
 global_variable _x_input_get_state* XInputGetState_ = XInputGetStateStub;
@@ -45,6 +45,10 @@ global_variable _x_input_set_state* XInputSetState_ = XInputSetStateStub;
 
 #define XInputGetState XInputGetState_;
 #define XInputSetState XInputSetState_;
+
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN  pUnkOuter );
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
 
 internal void
 Win32LoadXInput(void)
@@ -58,8 +62,80 @@ Win32LoadXInput(void)
 	}
 }
 
+internal void
+Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
+{
+	// 1. Load library
+	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
 
+	// 2. Give the option to function with or without sound
+	if (DSoundLibrary)
+	{
+		direct_sound_create* DirectSoundCreate = (direct_sound_create*)GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+		
+		LPDIRECTSOUND DirectSound;
+		if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
+		{
+			// Set format of primary buffer
+			WAVEFORMATEX WaveFormat = {};
+			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+			WaveFormat.nChannels = 2;
+			WaveFormat.nSamplesPerSec = SamplePerSecond;
+			WaveFormat.nBlockAlign = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+			WaveFormat.nAvgBytesPerSec = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+			WaveFormat.wBitsPerSample = 16;
+			WaveFormat.cbSize;
+			if (!SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+			{
+				DSBUFFERDESC BufferDescription = {};
+				BufferDescription.dwSize = sizeof(BufferDescription);
+				BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER; // Set to primary buffer
+				// LPCDSBUFFERDESC lpcDSBufferDesc;
+				// IDirectSound8_CreateSoundBuffer();
+				LPDIRECTSOUNDBUFFER PrimaryBuffer;
+				if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
+				{
+					if (SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
+					{
+						
+					}
+					else
+					{
+						// Diagnostic
+					}
+				}
+				else
+				{
+					// Diagnostic
+				}
+			}
+			else
+			{
 
+			}
+			DSBUFFERDESC BufferDescription = {};
+			BufferDescription.dwSize = sizeof(BufferDescription);
+			BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER; // Set to primary buffer
+			BufferDescription.dwBufferBytes = BufferSize;
+			BufferDescription.lpwfxFormat = &WaveFormat;
+			LPDIRECTSOUNDBUFFER SecondaryBuffer;
+			if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0)))
+			{
+
+			}
+
+		}
+		else
+		{
+
+		}
+	}
+	else
+	{
+
+	}
+
+}
 
 
 internal win32_window_dimension
@@ -229,58 +305,69 @@ Win32MainWindowCallback(HWND Window,
 			bool WasDown = ((LParam & (1 << 30)) != 0); // Shift 30 bits up (or left)
 			bool IsDown = ((LParam & (1 << 31)) == 0); // We want it down!
 
-			if (VKCode == 'W')
+			if (WasDown != IsDown)
 			{
- 
+				if (VKCode == 'W')
+				{
+
+				}
+				else if (VKCode == 'A')
+				{
+
+				}
+				else if (VKCode == 'S')
+				{
+
+				}
+				else if (VKCode == 'D')
+				{
+
+				}
+				else if (VKCode == 'Q')
+				{
+
+				}
+				else if (VKCode == 'E')
+				{
+
+				}
+				else if (VKCode == VK_UP)
+				{
+
+				}
+				else if (VKCode == VK_LEFT)
+				{
+
+				}
+				else if (VKCode == VK_RIGHT)
+				{
+
+				}
+				else if (VKCode == VK_DOWN)
+				{
+
+				}
+				else if (VKCode == VK_ESCAPE)
+				{
+
+
+				}
+				else if (VKCode == VK_SPACE)
+				{
+
+				}
 			}
-			else if (VKCode == 'A')
+			
+
+			int32_t AltKeyWasDown = (LParam & (1 << 29));
+			if ((VKCode == VK_F4) && AltKeyWasDown)
 			{
-
-			}
-			else if (VKCode == 'S')
-			{
-
-			}
-			else if (VKCode == 'D')
-			{
-
-			}
-			else if (VKCode == 'Q')
-			{
-
-			}
-			else if (VKCode == 'E')
-			{
-
-			}
-			else if (VKCode == VK_UP)
-			{
-
-			}
-			else if (VKCode == VK_LEFT)
-			{
-
-			}
-			else if (VKCode == VK_RIGHT)
-			{
-
-			}
-			else if (VKCode == VK_DOWN)
-			{
-
-			}
-			else if (VKCode == VK_ESCAPE)
-			{
-
-
-			}
-			else if (VKCode == VK_SPACE)
-			{
-
+				Running = false;
 			}
 
 
 			break;
+
 
 		}
 
@@ -353,6 +440,10 @@ WinMain(HINSTANCE Instance,
 			// Use GetMessage() to dispatch incoming messages
 			int xOffset = 0;
 			int yOffset = 0;
+
+			// We cannot initialize our sound without the window
+			Win32InitDSound(Window, 48000, (48000 * sizeof(int16_t) * 2));
+
 			Running = true;
 			while (Running)
 			{
