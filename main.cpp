@@ -49,6 +49,8 @@ global_variable _x_input_set_state* XInputSetState_ = XInputSetStateStub;
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN  pUnkOuter );
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
+global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+
 
 internal void
 Win32LoadXInput(void)
@@ -115,15 +117,14 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 			}
 			DSBUFFERDESC BufferDescription = {};
 			BufferDescription.dwSize = sizeof(BufferDescription);
-			BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER; // Set to primary buffer
+			BufferDescription.dwFlags = 0; // Set to primary buffer
 			BufferDescription.dwBufferBytes = BufferSize;
 			BufferDescription.lpwfxFormat = &WaveFormat;
-			LPDIRECTSOUNDBUFFER SecondaryBuffer;
-			if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0)))
+			HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0);
+			if (SUCCEEDED(Error))
 			{
-
+				OutputDebugStringA("Secondary buffer created successfully!");
 			}
-
 		}
 		else
 		{
@@ -441,8 +442,18 @@ WinMain(HINSTANCE Instance,
 			int xOffset = 0;
 			int yOffset = 0;
 
+			// Sound test
+			int SamplesPerSecond = 48000;
+			int ToneHz = 256; // Actual value is ~261
+			uint32_t RunningSampleIndex = 0;
+			int SquareWavePeriod = SamplesPerSecond / ToneHz; // Samples per chunk!
+			int HalfSquareWavePeriod = SquareWavePeriod / 2;
+			int BytesPerSample = sizeof(int16_t) * 2;
+			int SecondaryBufferSize = SamplesPerSecond * BytesPerSample;
+
 			// We cannot initialize our sound without the window
-			Win32InitDSound(Window, 48000, (48000 * sizeof(int16_t) * 2));
+			Win32InitDSound(Window, SamplesPerSecond, SecondaryBufferSize);
+			GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
 			Running = true;
 			while (Running)
@@ -486,11 +497,6 @@ WinMain(HINSTANCE Instance,
 						int16_t StickX = Pad->sThumbLX;
 						int16_t StickY = Pad->sThumbLY;
 
-						if (A_Button)
-						{
-							yOffset += 2;
-						}
-
 					}
 					else
 					{
@@ -500,11 +506,69 @@ WinMain(HINSTANCE Instance,
 
 				}
 
-
-
 				RenderSomething(GlobalBackBuffer, xOffset, yOffset);
-				HDC DeviceContext = GetDC(Window);
 
+				// DirectSound output
+				DWORD PlayCursor;
+				DWORD WriteCursor; // Leads the PlayCursor to ensure it doesn't overwritten by the hardware
+				if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(
+					&PlayCursor,
+					&WriteCursor)))
+				{
+
+					DWORD ByteToLock = RunningSampleIndex * BytesPerSample % SecondaryBufferSize; // Runs forever, but where in the buffer where would it be?
+					DWORD BytesToWrite; // However far we would go to the playcursor
+
+					if (ByteToLock > PlayCursor)
+					{
+						BytesToWrite = (SecondaryBufferSize - ByteToLock);
+						BytesToWrite += PlayCursor;
+					}
+					else
+					{
+						BytesToWrite = PlayCursor - ByteToLock;
+					}
+
+					/*
+						Our sound buffer contains sound samples that look like:
+						16bit 16bit ...
+						[LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT]
+					*/
+
+					int16_t test = 0;
+					LPVOID* Region1 = (LPVOID*)test;
+					DWORD Region1Size;
+					LPVOID* Region2 = (LPVOID*)test;
+					DWORD Region2Size;
+
+					
+
+					if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock,BytesToWrite,
+																Region1, &Region1Size,
+																Region2, &Region2Size,
+																0)))
+					{
+						DWORD Region1SampleCount = Region1Size / BytesPerSample; // Get the region1 sample counts
+						int16_t* SampleOut = (int16_t*)Region1;
+						for (DWORD SampleIndex = 0; SampleIndex < Region1Size; ++SampleIndex)
+						{
+							int16_t SampleValue = (RunningSampleIndex++ / HalfSquareWavePeriod % 2) ? 16000 : -16000; // If the mod is even, that's hi
+							*SampleOut++ = SampleValue;
+							*SampleOut++ = SampleValue;
+						}
+
+						DWORD Region2SampleCount = Region1Size / BytesPerSample; // Get the region2 sample counts
+						SampleOut = (int16_t*)Region2;
+						for (DWORD SampleIndex = 0; SampleIndex < Region2Size; ++SampleIndex)
+						{
+							int16_t SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? 16000 : -16000; // If the mod is even, that's lo
+							*SampleOut++ = SampleValue;
+							*SampleOut++ = SampleValue;
+						}
+					}
+				}
+
+				HDC DeviceContext = GetDC(Window);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 				Win32DisplayBufferToWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, 0, 0, Dimension.Width, Dimension.Height);
 				ReleaseDC(Window, DeviceContext);
@@ -527,3 +591,22 @@ WinMain(HINSTANCE Instance,
 
 
 
+/** ------- NOTES ------------------------------
+ *  Hertz (Hz) is basically cycles per second.
+ *  A cycle is the distance from peak to peak.
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ * 
+ */
