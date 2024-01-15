@@ -83,11 +83,12 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
 			WaveFormat.nChannels = 2;
 			WaveFormat.nSamplesPerSec = SamplePerSecond;
-			WaveFormat.nBlockAlign = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
-			WaveFormat.nAvgBytesPerSec = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
 			WaveFormat.wBitsPerSample = 16;
-			WaveFormat.cbSize;
-			if (!SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+			WaveFormat.cbSize = 0;
+			// Not getting past this condition
+			if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
 			{
 				DSBUFFERDESC BufferDescription = {};
 				BufferDescription.dwSize = sizeof(BufferDescription);
@@ -95,25 +96,29 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 				// LPCDSBUFFERDESC lpcDSBufferDesc;
 				// IDirectSound8_CreateSoundBuffer();
 				LPDIRECTSOUNDBUFFER PrimaryBuffer;
+				OutputDebugStringA("We made it!\n");
 				if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
 				{
+					// Failing to set format...
 					if (SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
 					{
-						
+						OutputDebugStringA("Primary buffer created successfully!\n");
+
 					}
 					else
 					{
-						// Diagnostic
+						OutputDebugStringA("Primary buffer failed!\n");
+
 					}
 				}
 				else
 				{
-					// Diagnostic
+					OutputDebugStringA("Sound isn't being created! 123\n");
 				}
 			}
 			else
 			{
-
+				OutputDebugStringA("Sound isn't being created! 456\n");
 			}
 			DSBUFFERDESC BufferDescription = {};
 			BufferDescription.dwSize = sizeof(BufferDescription);
@@ -124,6 +129,10 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 			if (SUCCEEDED(Error))
 			{
 				OutputDebugStringA("Secondary buffer created successfully!");
+			}
+			else
+			{
+				OutputDebugStringA("Secondary buffer failed!");
 			}
 		}
 		else
@@ -238,7 +247,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 }
  
 internal void
-Win32DisplayBufferToWindow(HDC DeviceContext, int WindowWidth, int WindowHeight, 
+Win32DisplayBufferToWindow(HDC DeviceContext, int WindowWidth, int WindowHeight,
 							win32_offscreen_buffer Buffer,
 							int X, int Y, int Width, int Height)
 { 
@@ -412,7 +421,7 @@ WinMain(HINSTANCE Instance,
 	// Every time we resize our window, this function is called to correct our display to fit the window
 	Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
 
-	WindowClass.style = CS_HREDRAW | CS_VREDRAW; // Set of binary flags
+	WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC; // Set of binary flags
 	WindowClass.lpfnWndProc = Win32MainWindowCallback; // Pointer to a function 
 	WindowClass.hInstance = Instance;   // Determines what setting we set our window to
 	// WindowClass     hIcon;       
@@ -436,6 +445,7 @@ WinMain(HINSTANCE Instance,
 						0);
 		if (Window)
 		{
+			HDC DeviceContext = GetDC(Window);
 			// Start a message loop
 			// A queue of message are created for you by the window
 			// Use GetMessage() to dispatch incoming messages
@@ -443,7 +453,7 @@ WinMain(HINSTANCE Instance,
 			int yOffset = 0;
 
 			// Sound test
-			int SamplesPerSecond = 48000;
+			int32_t SamplesPerSecond = 48000;
 			int ToneHz = 256; // Actual value is ~261
 			uint32_t RunningSampleIndex = 0;
 			int SquareWavePeriod = SamplesPerSecond / ToneHz; // Samples per chunk!
@@ -517,7 +527,7 @@ WinMain(HINSTANCE Instance,
 				{
 
 					DWORD ByteToLock = RunningSampleIndex * BytesPerSample % SecondaryBufferSize; // Runs forever, but where in the buffer where would it be?
-					DWORD BytesToWrite; // However far we would go to the playcursor
+					DWORD BytesToWrite = 0; // However far we would go to the playcursor
 
 					if (ByteToLock > PlayCursor)
 					{
@@ -535,31 +545,28 @@ WinMain(HINSTANCE Instance,
 						[LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT]
 					*/
 
-					int16_t test = 0;
-					LPVOID* Region1 = (LPVOID*)test;
+					VOID* Region1;
 					DWORD Region1Size;
-					LPVOID* Region2 = (LPVOID*)test;
+					VOID* Region2;
 					DWORD Region2Size;
 
-					
-
 					if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock,BytesToWrite,
-																Region1, &Region1Size,
-																Region2, &Region2Size,
+																&Region1, &Region1Size,
+																&Region2, &Region2Size,
 																0)))
 					{
 						DWORD Region1SampleCount = Region1Size / BytesPerSample; // Get the region1 sample counts
 						int16_t* SampleOut = (int16_t*)Region1;
-						for (DWORD SampleIndex = 0; SampleIndex < Region1Size; ++SampleIndex)
+						for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
 						{
-							int16_t SampleValue = (RunningSampleIndex++ / HalfSquareWavePeriod % 2) ? 16000 : -16000; // If the mod is even, that's hi
+							int16_t SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? 16000 : -16000; // If the mod is even, that's hi
 							*SampleOut++ = SampleValue;
 							*SampleOut++ = SampleValue;
 						}
 
-						DWORD Region2SampleCount = Region1Size / BytesPerSample; // Get the region2 sample counts
+						DWORD Region2SampleCount = Region2Size / BytesPerSample; // Get the region2 sample counts
 						SampleOut = (int16_t*)Region2;
-						for (DWORD SampleIndex = 0; SampleIndex < Region2Size; ++SampleIndex)
+						for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
 						{
 							int16_t SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? 16000 : -16000; // If the mod is even, that's lo
 							*SampleOut++ = SampleValue;
@@ -568,7 +575,6 @@ WinMain(HINSTANCE Instance,
 					}
 				}
 
-				HDC DeviceContext = GetDC(Window);
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 				Win32DisplayBufferToWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, 0, 0, Dimension.Width, Dimension.Height);
 				ReleaseDC(Window, DeviceContext);
