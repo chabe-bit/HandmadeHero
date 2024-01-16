@@ -647,7 +647,7 @@ WinMain(HINSTANCE Instance,
 
 				I64 EndCycleCount = __rdtsc();
 				
-				// ------ Dimensional Analysis ------- Clock Time Info! ----------
+				// Dimensional Analysis
 				I64 CyclesElapsed(EndCycleCount - LastCycleCount);
 				I64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart; // Lets us compute the difference count every time.
 				I32 MSPerFrame = (I32)((1000 * CounterElapsed) / PerfCountFrequency); // This returns the second  
@@ -660,8 +660,6 @@ WinMain(HINSTANCE Instance,
 
 				LastCounter = EndCounter;
 				LastCycleCount = EndCycleCount;
-				// --------------------------------------------------------------
-
 				xOffset++;
 			}
 		}
