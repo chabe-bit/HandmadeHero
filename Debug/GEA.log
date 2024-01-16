@@ -1,4 +1,6 @@
 ﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(263,5): warning MSB8077: Some files are set to compile as C++/CLI, but 'Enable CLR Support for Individual Files' property is not defined. See 'Advanced Property Page' documentation for more details.
   main.cpp
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\main.cpp(465,10): warning C4244: 'initializing': conversion from 'double' to 'F32', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\main.cpp(477,10): warning C4244: 'initializing': conversion from 'double' to 'F32', possible loss of data
   main.obj : MSIL module encountered; incremental linking is disabled for MSIL; performing full link
   GEA.vcxproj -> C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\Debug\GEA.exe

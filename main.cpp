@@ -2,11 +2,32 @@
 #include <stdint.h>
 #include <Xinput.h>
 #include <dsound.h>
+#include <math.h>
 
 #define internal static
 #define local_persist static
 #define global_variable static
+#define PI 3.141592653589
 
+global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
+global_variable bool SoundIsPlaying;
+
+typedef int8_t		I8;
+typedef int16_t		I16;
+typedef int32_t		I32;
+typedef int64_t		I64;
+
+typedef uint8_t		U8;
+typedef uint16_t	U16;
+typedef uint32_t	U32;
+typedef uint64_t	U64;
+
+typedef float		F32; // 32 bits
+typedef double		F64; // 64 bits
+
+////////////////////////////////////////////////
+// ---------- STRUCTS --------------------------
+////////////////////////////////////////////////
 struct win32_offscreen_buffer
 {
 	BITMAPINFO BitmapInfo;
@@ -21,35 +42,50 @@ struct win32_window_dimension
 {
 	int Width;
 	int Height;
-
 };
 
-// --- XInputGetState ----------------------------------------------
+struct win32_sound_output
+{
+	// Sound test
+	I32 SamplesPerSecond;
+	int ToneHz; // Actual value is ~261
+	I16 ToneVolume;
+	U32 RunningSampleIndex;
+	int WavePeriod; // Samples per chunk!
+	int HalfWavePeriod;
+	int BytesPerSample;
+	int SecondaryBufferSize;
+};
+
+////////////////////////////////////////////////
+// ------------ XInputGetState -----------------
+////////////////////////////////////////////////
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE* pState)
+#define XInputGetState XInputGetState_;
 typedef X_INPUT_GET_STATE(_x_input_get_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
+global_variable _x_input_get_state* XInputGetState_ = XInputGetStateStub;
 
-// --- XInputSetState ----------------------------------------------
+////////////////////////////////////////////////
+// ------------ XInputSetState -----------------
+////////////////////////////////////////////////
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
+#define XInputSetState XInputSetState_;
 typedef X_INPUT_SET_STATE(_x_input_set_state);
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
-
-global_variable _x_input_get_state* XInputGetState_ = XInputGetStateStub;
 global_variable _x_input_set_state* XInputSetState_ = XInputSetStateStub;
 
-#define XInputGetState XInputGetState_;
-#define XInputSetState XInputSetState_;
-
+////////////////////////////////////////////////
+// ------------ Create Sound -----------------
+////////////////////////////////////////////////
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN  pUnkOuter );
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
-
-global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 
 
 internal void
@@ -65,7 +101,7 @@ Win32LoadXInput(void)
 }
 
 internal void
-Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
+Win32InitDSound(HWND Window, I32 SamplePerSecond, I32 BufferSize)
 {
 	// 1. Load library
 	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
@@ -87,7 +123,6 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
 			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
 			WaveFormat.cbSize = 0;
-			// Not getting past this condition
 			if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
 			{
 				DSBUFFERDESC BufferDescription = {};
@@ -147,7 +182,6 @@ Win32InitDSound(HWND Window, int32_t SamplePerSecond, int32_t BufferSize)
 
 }
 
-
 internal win32_window_dimension
 Win32GetWindowDimension(HWND Window)
 {
@@ -174,11 +208,11 @@ RenderSomething(win32_offscreen_buffer Buffer, int xOffset, int yOffset)
 	int Height = Buffer.Height;
 
 	// Change the void* BitmapMemory into something it does understand, treated as bytes to memory
-	uint8_t* Row = (uint8_t*)Buffer.BitmapMemory;
+	U8* Row = (U8*)Buffer.BitmapMemory;
 	for (int Y = 0; Y < Buffer.Height; ++Y)
 	{
 		// Point each row in the bitmap as a pointer
-		uint8_t* Pixel = (uint8_t*)Row;
+		U8* Pixel = (U8*)Row;
 		for (int X = 0; X < Buffer.Width; ++X)
 		{
 			// Write into the Pixel by derefencing
@@ -191,10 +225,10 @@ RenderSomething(win32_offscreen_buffer Buffer, int xOffset, int yOffset)
 
 			*/
 
-			*Pixel = (uint8_t)(X + xOffset);
+			*Pixel = (U8)(X + xOffset);
 			++Pixel;
 
-			*Pixel = (uint8_t)(Y + yOffset);
+			*Pixel = (U8)(Y + yOffset);
 			++Pixel;
 
 			*Pixel = 0;
@@ -310,7 +344,7 @@ Win32MainWindowCallback(HWND Window,
 		}
 		case WM_KEYDOWN:
 		{
-			uint32_t VKCode = WParam;
+			I32 VKCode = WParam;
 			// Check to see if a key WAS down
 			bool WasDown = ((LParam & (1 << 30)) != 0); // Shift 30 bits up (or left)
 			bool IsDown = ((LParam & (1 << 31)) == 0); // We want it down!
@@ -369,7 +403,7 @@ Win32MainWindowCallback(HWND Window,
 			}
 			
 
-			int32_t AltKeyWasDown = (LParam & (1 << 29));
+			I32 AltKeyWasDown = (LParam & (1 << 29));
 			if ((VKCode == VK_F4) && AltKeyWasDown)
 			{
 				Running = false;
@@ -406,6 +440,48 @@ Win32MainWindowCallback(HWND Window,
 	}
 
 	return Result;
+}
+
+internal void
+Win32FillSoundBuffer(win32_sound_output* SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
+{
+	VOID* Region1;
+	DWORD Region1Size;
+	VOID* Region2;
+	DWORD Region2Size;
+
+	if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite,
+		&Region1, &Region1Size,
+		&Region2, &Region2Size,
+		0)))
+	{
+		DWORD Region1SampleCount = Region1Size / SoundOutput->BytesPerSample; // Get the region1 sample counts
+		int16_t* SampleOut = (int16_t*)Region1;
+		for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
+		{
+			// Computer a value that'll be a sine wave
+			// If you're working with math heavy code, you'll always be working with floats
+			// we need to think where we are in the sine wave
+			F32 t = 2.0f * PI * ((F32)SoundOutput->RunningSampleIndex / (F32)SoundOutput->WavePeriod); // The divide that tells us where we are, then multiplky by the cycle of our wave
+			F32 SineValue = sinf(t);
+			I16 SampleValue = (I16)(SineValue * SoundOutput->ToneVolume);
+			*SampleOut++ = SampleValue;
+			*SampleOut++ = SampleValue;
+			++SoundOutput->RunningSampleIndex;
+		}
+
+		DWORD Region2SampleCount = Region2Size / SoundOutput->BytesPerSample; // Get the region2 sample counts
+		SampleOut = (int16_t*)Region2;
+		for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
+		{
+			F32 t = 2.0f * PI * ((F32)SoundOutput->RunningSampleIndex / (F32)SoundOutput->WavePeriod); // The divide that tells us where we are, then multiplky by the cycle of our wave
+			F32 SineValue = sinf(t);
+			I16 SampleValue = (I16)(SineValue * SoundOutput->ToneVolume);
+			*SampleOut++ = SampleValue;
+			*SampleOut++ = SampleValue;
+			++SoundOutput->RunningSampleIndex;
+		}
+	}
 }
 
 int CALLBACK
@@ -452,17 +528,17 @@ WinMain(HINSTANCE Instance,
 			int xOffset = 0;
 			int yOffset = 0;
 
-			// Sound test
-			int32_t SamplesPerSecond = 48000;
-			int ToneHz = 256; // Actual value is ~261
-			uint32_t RunningSampleIndex = 0;
-			int SquareWavePeriod = SamplesPerSecond / ToneHz; // Samples per chunk!
-			int HalfSquareWavePeriod = SquareWavePeriod / 2;
-			int BytesPerSample = sizeof(int16_t) * 2;
-			int SecondaryBufferSize = SamplesPerSecond * BytesPerSample;
-
-			// We cannot initialize our sound without the window
-			Win32InitDSound(Window, SamplesPerSecond, SecondaryBufferSize);
+			win32_sound_output SoundOutput = {};
+			SoundOutput.SamplesPerSecond = 48000;
+			SoundOutput.ToneHz = 256; // Actual value is ~261
+			SoundOutput.ToneVolume = 6000;
+			SoundOutput.RunningSampleIndex = 0;
+			SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz; // Samples per chunk!
+			SoundOutput.HalfWavePeriod = SoundOutput.WavePeriod / 2;
+			SoundOutput.BytesPerSample = sizeof(int16_t) * 2;
+			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
+			Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
+			Win32FillSoundBuffer(&SoundOutput, 0, SoundOutput.SecondaryBufferSize);
 			GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
 			Running = true;
@@ -504,8 +580,8 @@ WinMain(HINSTANCE Instance,
 						bool X_Button = (Pad->wButtons) & XINPUT_GAMEPAD_X;
 						bool Y_Button = (Pad->wButtons) & XINPUT_GAMEPAD_Y;
 
-						int16_t StickX = Pad->sThumbLX;
-						int16_t StickY = Pad->sThumbLY;
+						I16 StickX = Pad->sThumbLX;
+						I16 StickY = Pad->sThumbLY;
 
 					}
 					else
@@ -526,54 +602,31 @@ WinMain(HINSTANCE Instance,
 					&WriteCursor)))
 				{
 
-					DWORD ByteToLock = RunningSampleIndex * BytesPerSample % SecondaryBufferSize; // Runs forever, but where in the buffer where would it be?
+					DWORD ByteToLock = (SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize; // Runs forever, but where in the buffer where would it be?
 					DWORD BytesToWrite = 0; // However far we would go to the playcursor
 
-					if (ByteToLock > PlayCursor)
+					if (ByteToLock == PlayCursor)
 					{
-						BytesToWrite = (SecondaryBufferSize - ByteToLock);
+						BytesToWrite = 0;
+					}
+					else if (ByteToLock > PlayCursor)
+					{
+						BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
 						BytesToWrite += PlayCursor;
 					}
 					else
 					{
 						BytesToWrite = PlayCursor - ByteToLock;
 					}
-
+					Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite);
 					/*
 						Our sound buffer contains sound samples that look like:
 						16bit 16bit ...
 						[LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT] [LEFT RIGHT]
 					*/
-
-					VOID* Region1;
-					DWORD Region1Size;
-					VOID* Region2;
-					DWORD Region2Size;
-
-					if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock,BytesToWrite,
-																&Region1, &Region1Size,
-																&Region2, &Region2Size,
-																0)))
-					{
-						DWORD Region1SampleCount = Region1Size / BytesPerSample; // Get the region1 sample counts
-						int16_t* SampleOut = (int16_t*)Region1;
-						for (DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
-						{
-							int16_t SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? 16000 : -16000; // If the mod is even, that's hi
-							*SampleOut++ = SampleValue;
-							*SampleOut++ = SampleValue;
-						}
-
-						DWORD Region2SampleCount = Region2Size / BytesPerSample; // Get the region2 sample counts
-						SampleOut = (int16_t*)Region2;
-						for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
-						{
-							int16_t SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? 16000 : -16000; // If the mod is even, that's lo
-							*SampleOut++ = SampleValue;
-							*SampleOut++ = SampleValue;
-						}
-					}
 				}
+
+
 
 				win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 				Win32DisplayBufferToWindow(DeviceContext, Dimension.Width, Dimension.Height, GlobalBackBuffer, 0, 0, Dimension.Width, Dimension.Height);
