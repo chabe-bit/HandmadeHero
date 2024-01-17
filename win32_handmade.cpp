@@ -5,26 +5,15 @@
 #include <dsound.h>
 #include <math.h>
 
-#define internal static
-#define local_persist static
-#define global_variable static
-#define PI 3.141592653589
+#include "include/common.h"
+#include "handmade.cpp"
+
+
 
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 global_variable bool SoundIsPlaying;
 
-typedef int8_t		I8;
-typedef int16_t		I16;
-typedef int32_t		I32;
-typedef int64_t		I64;
 
-typedef uint8_t		U8;
-typedef uint16_t	U16;
-typedef uint32_t	U32;
-typedef uint64_t	U64;
-
-typedef float		F32; // 32 bits
-typedef double		F64; // 64 bits
 
 ////////////////////////////////////////////////
 // ---------- STRUCTS --------------------------
@@ -604,7 +593,13 @@ WinMain(HINSTANCE Instance,
 
 				}
 
-				RenderSomething(GlobalBackBuffer, xOffset, yOffset);
+				// Isolate Game and Platform layer
+				game_offscreen_buffer Buffer = {};
+				Buffer.BitmapMemory = GlobalBackBuffer.BitmapMemory;
+				Buffer.Width = GlobalBackBuffer.Width;
+				Buffer.Height = GlobalBackBuffer.Height;
+				Buffer.Pitch = GlobalBackBuffer.Pitch;
+				GameUpdateAndRender(Buffer);
 
 				// DirectSound output
 				DWORD PlayCursor;
@@ -646,11 +641,11 @@ WinMain(HINSTANCE Instance,
 				QueryPerformanceCounter(&EndCounter);
 
 				I64 EndCycleCount = __rdtsc();
-				
-				// Dimensional Analysis
+				 
+				// ------ Dimensional Analysis ------- Clock Time Info! ----------
 				I64 CyclesElapsed(EndCycleCount - LastCycleCount);
 				I64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart; // Lets us compute the difference count every time.
-				I32 MSPerFrame = (I32)((1000 * CounterElapsed) / PerfCountFrequency); // This returns the second  
+				I32 MSPerFrame = (I32)((1000.0f * CounterElapsed) / PerfCountFrequency); // This returns the second  
 				I32 FPS = (I32)(PerfCountFrequency / CounterElapsed);
 				I32 MCPF = (I32)CyclesElapsed / (1000 * 1000);
 
@@ -660,6 +655,8 @@ WinMain(HINSTANCE Instance,
 
 				LastCounter = EndCounter;
 				LastCycleCount = EndCycleCount;
+				// --------------------------------------------------------------
+
 				xOffset++;
 			}
 		}
