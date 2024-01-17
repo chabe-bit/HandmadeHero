@@ -1,5 +1,7 @@
 #pragma once
+#include <intrin.h>
 #include <stdint.h>
+#include <math.h>
 
 #define internal static
 #define local_persist static

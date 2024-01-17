@@ -1,10 +1,35 @@
 #include "include/handmade.h"
 
 internal
-void RenderSomething(game_offscreen_buffer* Buffer, int xOffset, int yOffset)
+void GameOutputSound(game_sound_output_buffer* SoundBuffer)
 {
-	int Width = Buffer->Width;
-	int Height = Buffer->Height;
+	for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+	{
+		local_persist F32 tSine;
+		I16 ToneVolume = 3000;
+		int ToneHz = 256;
+		int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
+
+		I16* SampleOut = SoundBuffer->Samples; // Store the pointer for the sound output
+		
+		// Computer a value that'll be a sine wave
+		// If you're working with math heavy code, you'll always be working with floats
+		// we need to think where we are in the sine wave
+		
+		F32 SineValue = sinf(tSine);
+		I16 SampleValue = (I16)(SineValue * ToneVolume);
+		*SampleOut++ = SampleValue;
+		*SampleOut++ = SampleValue;
+		++SoundBuffer->RunningSampleIndex;
+
+		tSine = 2.0f * PI * 1.0f / (F32)WavePeriod; // The divide that tells us where we are, then multiplky by the cycle of our wave
+
+	}
+}
+
+internal
+void Renderer(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset)
+{
 
 	// Change the void* BitmapMemory into something it does understand, treated as bytes to memory
 	U8* Row = (U8*)Buffer->BitmapMemory;
@@ -24,17 +49,18 @@ void RenderSomething(game_offscreen_buffer* Buffer, int xOffset, int yOffset)
 
 			*/
 
-			*Pixel = (U8)(X + xOffset);
+			*Pixel = (U8)(X + BlueOffset);
 			++Pixel;
 
-			*Pixel = (U8)(Y + yOffset);
+			*Pixel = (U8)(Y + GreenOffset);
+			++Pixel;
+
+			*Pixel = 0;
 			++Pixel;
 
 			*Pixel = 0;
 			++Pixel;
 
-			*Pixel = 0;
-			++Pixel;
 
 		}
 		Row += Buffer->Pitch;
@@ -42,9 +68,13 @@ void RenderSomething(game_offscreen_buffer* Buffer, int xOffset, int yOffset)
 }
 
 internal void
-GameUpdateAndRender(game_offscreen_buffer Buffer)
+GameUpdateAndRender(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset,
+					game_sound_output_buffer* SoundBuffer)
 {
-	int BlueOffset = 0;
-	int GreenOffset = 0;
-	RenderSomething(&Buffer, BlueOffset, GreenOffset);
+	// What do we need? What do we start with?
+	// Where in time do we want these samples to be, so that if we're in trouble we can skip forward
+	
+	// TODO(Ben): Allow sample offsets here for more robust platform options
+	GameOutputSound(SoundBuffer);
+	Renderer(Buffer, BlueOffset, GreenOffset);
 }

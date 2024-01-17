@@ -5,7 +5,6 @@
 #ifndef HANDMADE_H
 #define HANDMADE_H	
 
-// RenderSomething(GlobalBackBuffer, xOffset, yOffset);
 struct game_offscreen_buffer
 {
 	//BITMAPINFO BitmapInfo;
@@ -15,9 +14,20 @@ struct game_offscreen_buffer
 	int Pitch;
 };
 
-internal 
-void GameUpdateAndRender(game_offscreen_buffer Buffer);
+struct game_sound_output_buffer
+{
+	int SamplesPerSecond;
+	int SampleCount;
+	I16* Samples; 
+	U32 RunningSampleIndex;
 
+};
+
+internal
+void GameUpdateAndRender(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset,
+						game_sound_output_buffer* SoundBuffer);
+internal
+void GameOutputSound(game_sound_output_buffer* SoundBuffer);
 
 
 #endif
