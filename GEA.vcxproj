@@ -151,6 +151,7 @@
   <ItemGroup>
     <ClInclude Include="include\common.h" />
     <ClInclude Include="include\handmade.h" />
+    <ClInclude Include="include\win32_handmade.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -1,9 +1,10 @@
 ﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(263,5): warning MSB8077: Some files are set to compile as C++/CLI, but 'Enable CLR Support for Individual Files' property is not defined. See 'Advanced Property Page' documentation for more details.
   win32_handmade.cpp
-C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(21,29): warning C4244: '+=': conversion from 'double' to 'f32', possible loss of data
-C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(576): warning C4793: '_WinMain': function compiled as native:
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(20,29): warning C4244: '+=': conversion from 'double' to 'f32', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(91,26): warning C4244: '+=': conversion from 'f32' to 'int', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(586): warning C4793: '_WinMain': function compiled as native:
   	Found an intrinsic not supported in managed code
-C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(690): warning C4793: '_WinMain': function compiled as native:
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(725): warning C4793: '_WinMain': function compiled as native:
   	Found an intrinsic not supported in managed code
   handmade.obj : MSIL module encountered; incremental linking is disabled for MSIL; performing full link
   GEA.vcxproj -> C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\Debug\GEA.exe

@@ -32,5 +32,8 @@
     <ClInclude Include="include\common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\win32_handmade.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

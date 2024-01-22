@@ -1,11 +1,10 @@
 #include "include/handmade.h"
 
 internal
-void GameOutputSound(game_sound_output_buffer* SoundBuffer)
+void GameOutputSound(game_sound_output_buffer* SoundBuffer, int ToneHz)
 {
 	local_persist f32 tSine;
 	i16 ToneVolume = 3000;
-	int ToneHz = 256;
 	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
 
 	i16* SampleOut = SoundBuffer->Samples;
@@ -64,13 +63,34 @@ void Renderer(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset)
 }
 
 internal void
-GameUpdateAndRender(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset,
-					game_sound_output_buffer* SoundBuffer)
+GameUpdateAndRender(game_input* Input, game_offscreen_buffer* Buffer, game_sound_output_buffer* SoundBuffer)
 {
-	// What do we need? What do we start with?
-	// Where in time do we want these samples to be, so that if we're in trouble we can skip forward
+	local_persist int BlueOffset = 0;
+	local_persist int GreenOffset = 0;
+	local_persist int ToneHz = 256;
+
+	// Possible to make a fighting game? 
+	game_controller_input* Input0 = &Input->Controllers[0];
+	if (Input0->IsAnalog)
+	{ 
 	
-	// TODO(Ben): Allow sample offsets here for more robust platform options
-	GameOutputSound(SoundBuffer);
+	}
+	else
+	{
+
+	}
+
+	//Input.SKeyEndedDown;
+	//Input.SKeyHalfTransitionCount;
+	if (Input0->Down.EndedDown)
+	{
+		GreenOffset += 1;
+	}
+	
+	ToneHz = 256 * (int)(120.0f * (Input0->EndX));
+	BlueOffset += (int)4.0f * (Input0->EndY);
+
+
+	GameOutputSound(SoundBuffer, ToneHz);
 	Renderer(Buffer, BlueOffset, GreenOffset);
 }
