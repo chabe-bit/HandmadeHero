@@ -577,6 +577,7 @@ WinMain(HINSTANCE Instance,
 
 			i16* Samples = (i16*)VirtualAlloc(0, 48000 * 2 * sizeof(16), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
+			
 			game_input Input[2] = {};
 			game_input* NewInput = &Input[0];
 			game_input* OldInput = &Input[1];
@@ -605,15 +606,16 @@ WinMain(HINSTANCE Instance,
 
 				// This is where we taking user input
 				int MaxControllerCount = XUSER_MAX_COUNT;
-				if (MaxControllerCount > ArrayCount(NewInput->Controllers)))
+				if (MaxControllerCount > ArrayCount(NewInput->Controllers))
 				{
-					MaxControllerCount = ArrayCount(NewInput->Controllers));
+					MaxControllerCount = ArrayCount(NewInput->Controllers);
 				}
 				for (DWORD ControllerIndex = 0; 
-					ControllerIndex < XUSER_MAX_COUNT; 
+					ControllerIndex < MaxControllerCount; 
 					++ControllerIndex)
 				{
 
+					__debugbreak;
 					game_controller_input* OldController = &OldInput->Controllers[ControllerIndex];
 					game_controller_input* NewController = &NewInput->Controllers[ControllerIndex];
 
@@ -627,6 +629,9 @@ WinMain(HINSTANCE Instance,
 						bool Down = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_DOWN;
 						bool Left = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_LEFT;
 						bool Right = (Pad->wButtons) & XINPUT_GAMEPAD_DPAD_RIGHT;
+						i16 StickX = Pad->sThumbLX;
+						i16 StickY = Pad->sThumbLY;
+						 
 
 						Win32ProcessXInputDigitalButton(Pad->wButtons,
 							&OldController->Down, XINPUT_GAMEPAD_A,
@@ -650,14 +655,10 @@ WinMain(HINSTANCE Instance,
 
 					/*	bool Start = (Pad->wButtons) & XINPUT_GAMEPAD_START;
 						bool Back = (Pad->wButtons) & XINPUT_GAMEPAD_BACK;*/
-
-						i16 StickX = Pad->sThumbLX;
-						i16 StickY = Pad->sThumbLY;
-
 					}
 					else
 					{
-						// This meansa the controller is not plugged in.
+						// This means a the controller is not plugged in.
 
 					}
 
@@ -709,7 +710,6 @@ WinMain(HINSTANCE Instance,
 				Buffer.Pitch = GlobalBackBuffer.Pitch;
 				GameUpdateAndRender(NewInput, &Buffer, &SoundBuffer);
 
-
 				if (SoundIsValid)
 				{
 					Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
@@ -737,7 +737,6 @@ WinMain(HINSTANCE Instance,
 
 				LastCounter = EndCounter;
 				LastCycleCount = EndCycleCount;
-				// --------------------------------------------------------------
 
 				game_input* Temp = NewInput;
 				NewInput = OldInput;

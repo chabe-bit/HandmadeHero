@@ -5,7 +5,7 @@
 #ifndef HANDMADE_H
 #define HANDMADE_H	
 
-#define ArrayCount(Array) (sizeof(Array) / sizeof((Array[0]))
+#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer
 {

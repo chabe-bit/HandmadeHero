@@ -73,7 +73,8 @@ GameUpdateAndRender(game_input* Input, game_offscreen_buffer* Buffer, game_sound
 	game_controller_input* Input0 = &Input->Controllers[0];
 	if (Input0->IsAnalog)
 	{ 
-	
+		ToneHz = 256 + (int)(128.0f * (Input0->EndX));
+		BlueOffset += (int)4.0f * (Input0->EndY);
 	}
 	else
 	{
@@ -87,10 +88,6 @@ GameUpdateAndRender(game_input* Input, game_offscreen_buffer* Buffer, game_sound
 		GreenOffset += 1;
 	}
 	
-	ToneHz = 256 * (int)(120.0f * (Input0->EndX));
-	BlueOffset += (int)4.0f * (Input0->EndY);
-
-
 	GameOutputSound(SoundBuffer, ToneHz);
 	Renderer(Buffer, BlueOffset, GreenOffset);
 }
