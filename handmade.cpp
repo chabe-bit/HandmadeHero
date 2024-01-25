@@ -63,14 +63,24 @@ void Renderer(game_offscreen_buffer* Buffer, int BlueOffset, int GreenOffset)
 }
 
 
-
 internal void
 GameUpdateAndRender(game_memory* Memory,
 					game_input * Input, game_offscreen_buffer* Buffer, game_sound_output_buffer* SoundBuffer)
 {
+	Assert(sizeof(game_state) <= Memory->PermanentStorageSize);
+
 	game_state* GameState = (game_state*)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
+		const char* Filename = __FILE__;
+
+		debug_read_file_result File = DEBUGPlatformReadEntireFile((char*)Filename);
+		if (File.Contents)
+		{
+			DEBUGPlatformWriteEntireFile((char*)"c:/dev/test.out", File.ContentsSize, File.Contents);
+			DEBUGPlatformFreeFileMemory(File.Contents);
+		}
+
 		GameState->ToneHz = 256; 
 		Memory->IsInitialized = true;
 	}

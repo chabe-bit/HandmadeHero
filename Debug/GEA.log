@@ -1,6 +1,18 @@
 ﻿C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(263,5): warning MSB8077: Some files are set to compile as C++/CLI, but 'Enable CLR Support for Individual Files' property is not defined. See 'Advanced Property Page' documentation for more details.
   handmade.cpp
 C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(20,29): warning C4244: '+=': conversion from 'double' to 'f32', possible loss of data
-C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(83,38): warning C4244: '+=': conversion from 'f32' to 'int', possible loss of data
-  handmade.obj : MSIL module encountered; incremental linking is disabled for MSIL; performing full link
-  GEA.vcxproj -> C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\Debug\GEA.exe
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(93,38): warning C4244: '+=': conversion from 'f32' to 'int', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\include\handmade.h(36,15): error C2129: static function 'bool DEBUGPlatformWriteEntireFile(char *,u32,void *)' declared but not defined
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\include\handmade.h(36,15): message : see declaration of 'DEBUGPlatformWriteEntireFile'
+  win32_handmade.cpp
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(20,29): warning C4244: '+=': conversion from 'double' to 'f32', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\handmade.cpp(93,38): warning C4244: '+=': conversion from 'f32' to 'int', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(671,60): warning C4244: 'argument': conversion from 'u64' to 'SIZE_T', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(674,60): warning C4244: 'argument': conversion from 'u64' to 'SIZE_T', possible loss of data
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(714,22): warning C4018: '<': signed/unsigned mismatch
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(718,6): warning C4551: function call missing argument list
+  Generating Code...
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(687): warning C4793: '_WinMain': function compiled as native:
+  	Found an intrinsic not supported in managed code
+C:\Users\amyke\Desktop\GameEngineArcheticture\GEA\win32_handmade.cpp(826): warning C4793: '_WinMain': function compiled as native:
+  	Found an intrinsic not supported in managed code

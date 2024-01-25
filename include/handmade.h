@@ -5,11 +5,36 @@
 #ifndef HANDMADE_H
 #define HANDMADE_H	
 
+#if HANDMADE_SLOW
+#define Assert(Expression) if(!(Expression)) {*(int*)0 = 0;}
+#else
+#define Assert(Expression) 
+#endif
+
 #define Kilobytes(Value) ((Value) * 1024)
 #define Megabytes(Value) (Kilobytes(Value) * 1024)
 #define Gigabytes(Value) (Megabytes(Value) * 1024)
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
+
+inline u32
+SafeTruncateUInt64(u64 Value)
+{
+	Assert(Value <= 0xFFFFFFFF);
+	u32 Result = (u32)Value;
+	return Result;
+}
+
+//#if HANDMADE_INTERAL
+struct debug_read_file_result
+{
+	u32 ContentsSize;
+	void* Contents;
+};
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char* Filename);
+internal void DEBUGPlatformFreeFileMemory(void* BitmapMemory);
+internal bool DEBUGPlatformWriteEntireFile(char* Filename, u32 MemorySize, void* Memory);
+//#endif
 
 struct game_offscreen_buffer
 {
@@ -19,7 +44,7 @@ struct game_offscreen_buffer
 	int Height;
 	int Pitch;
 };
-
+ 
 struct game_sound_output_buffer
 {
 	int SamplesPerSecond;
