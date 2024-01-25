@@ -576,7 +576,18 @@ WinMain(HINSTANCE Instance,
 			GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
 
 			i16* Samples = (i16*)VirtualAlloc(0, 48000 * 2 * sizeof(16), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			
+			game_memory GameMemory = {};
+			GameMemory.PermanentStorageSize = Megabytes(64);
+			GameMemory.PermanentStorage = VirtualAlloc(0, GameMemory.PermanentStorageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			
+			GameMemory.TransientStorageSize = Gigabytes((u64)4);
+			GameMemory.TransientStorage = VirtualAlloc(0, GameMemory.TransientStorageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
+			if (Samples && GameMemory.PermanentStorage)
+			{
+
+			}
 			
 			game_input Input[2] = {};
 			game_input* NewInput = &Input[0];
@@ -708,7 +719,8 @@ WinMain(HINSTANCE Instance,
 				Buffer.Width = GlobalBackBuffer.Width;
 				Buffer.Height = GlobalBackBuffer.Height;
 				Buffer.Pitch = GlobalBackBuffer.Pitch;
-				GameUpdateAndRender(NewInput, &Buffer, &SoundBuffer);
+				GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
+
 
 				if (SoundIsValid)
 				{

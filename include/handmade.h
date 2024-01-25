@@ -5,6 +5,10 @@
 #ifndef HANDMADE_H
 #define HANDMADE_H	
 
+#define Kilobytes(Value) ((Value) * 1024)
+#define Megabytes(Value) (Kilobytes(Value) * 1024)
+#define Gigabytes(Value) (Megabytes(Value) * 1024)
+
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
 struct game_offscreen_buffer
@@ -65,9 +69,26 @@ struct game_input
 	game_controller_input Controllers[4];
 };
 
+struct game_state
+{
+	int BlueOffset;
+	int GreenOffset;
+	int ToneHz;
+};
+
+struct game_memory
+{
+	bool IsInitialized;
+	u64 PermanentStorageSize;
+	void* PermanentStorage;
+
+	u64 TransientStorageSize;
+	void* TransientStorage;
+};
+
 
 internal
-void GameUpdateAndRender(game_input* Input,
+void GameUpdateAndRender(game_memory* Memory, game_input* Input,
 						game_offscreen_buffer* Buffer,
 						game_sound_output_buffer* SoundBuffer);
 internal
